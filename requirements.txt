@@ -1,0 +1,6 @@
+opencv-python-headless
+Flask
+requests
+requests-cache
+Werkzeug
+gunicorn
