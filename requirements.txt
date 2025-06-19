@@ -4,5 +4,4 @@ requests
 requests-cache
 Werkzeug
 gunicorn
-pyttsx3
-pydub
+edge-tts
