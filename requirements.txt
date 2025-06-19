@@ -1,6 +1,8 @@
-opencv-python-headless
 Flask
+opencv-python-headless
 requests
 requests-cache
 Werkzeug
 gunicorn
+pyttsx3
+pydub
