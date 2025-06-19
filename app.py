@@ -1,39 +1,19 @@
-import cv2
-import tempfile
 import os
+import tempfile
 import uuid
-import asyncio
-import edge_tts
+import cv2
 from flask import Flask, jsonify, render_template, send_file, redirect, request
 from werkzeug.utils import secure_filename
 from OBR import SegmentationEngine, BrailleClassifier, BrailleImage
+import pyttsx3
+from pydub import AudioSegment
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 tempdir = tempfile.TemporaryDirectory()
-
 app = Flask("Optical Braille Recognition Demo")
 app.config['UPLOAD_FOLDER'] = tempdir.name
 
-# Ensure static folder exists
-if not os.path.exists("static"):
-    os.makedirs("static")
-
-@app.route("/speech", methods=["POST"])
-def text_to_speech():
-    text = request.form.get("text", "")
-    if not text:
-        return jsonify({"error": True, "message": "No text provided"})
-
-    filename = "static/output.mp3"
-
-    async def generate():
-        communicate = edge_tts.Communicate(text, "en-US-AriaNeural")
-        await communicate.save(filename)
-
-    asyncio.run(generate())
-
-    return jsonify({"error": False, "url": "/" + filename})
-
+AUDIO_PATH = os.path.join(app.config['UPLOAD_FOLDER'], "tts.mp3")
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -67,23 +47,48 @@ def upload():
     if file and allowed_file(file.filename):
         filename = ''.join(str(uuid.uuid4()).split('-'))
         file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-
-        image_path = '{}/{}'.format(tempdir.name, filename)
+        
+        image_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         classifier = BrailleClassifier()
         img = BrailleImage(image_path)
         for letter in SegmentationEngine(image=img):
             letter.mark()
             classifier.push(letter)
-        cv2.imwrite('{}/{}-proc.png'.format(tempdir.name, filename), img.get_final_image())
+        cv2.imwrite(os.path.join(app.config['UPLOAD_FOLDER'], f"{filename}-proc.png"), img.get_final_image())
         os.unlink(image_path)
 
-        r = {
+        digest_result = classifier.digest()
+        return jsonify({
             "error": False,
             "message": "Processed and Digested successfully",
             "img_id": filename,
-            "digest": classifier.digest()
-        }
-        return jsonify(r)
+            "digest": digest_result
+        })
+
+@app.route('/speech', methods=['POST'])
+def speech():
+    text = request.form.get("text", "")
+    if not text:
+        return jsonify({"error": True, "message": "No text provided"})
+
+    wav_path = os.path.join(app.config['UPLOAD_FOLDER'], "tts.wav")
+
+    engine = pyttsx3.init()
+    engine.setProperty('rate', 150)
+    engine.save_to_file(text, wav_path)
+    engine.runAndWait()
+
+    sound = AudioSegment.from_wav(wav_path)
+    sound.export(AUDIO_PATH, format="mp3")
+    os.remove(wav_path)
+
+    return jsonify({"error": False, "url": "/getaudio"})
+
+@app.route('/getaudio')
+def get_audio():
+    if os.path.exists(AUDIO_PATH):
+        return send_file(AUDIO_PATH, mimetype="audio/mpeg")
+    return jsonify({"error": True, "message": "Audio not found"})
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run()
