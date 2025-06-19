@@ -14,11 +14,10 @@ tempdir = tempfile.TemporaryDirectory()
 app = Flask("Optical Braille Recognition Demo")
 app.config['UPLOAD_FOLDER'] = tempdir.name
 
-# Make sure static folder exists
+# Ensure static folder exists
 if not os.path.exists("static"):
     os.makedirs("static")
 
-# Text-to-speech route
 @app.route("/speech", methods=["POST"])
 def text_to_speech():
     text = request.form.get("text", "")
