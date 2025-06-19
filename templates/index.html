@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Braille to Speech Converter</title>
   <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css">
   <style>
@@ -18,48 +18,34 @@
 <body style="background: #ffffff">
 <div class="container">
 
-  <header style="position: fixed;left: 0;top: 0; margin-top: 7px; width: 100%; background-color: #ffffff">
-    <h1 align="center" style="color: #5bc0de;">
-      <b>Braille to Speech Converter</b>
-    </h1>
+  <header class="text-center mt-3 mb-3">
+    <h1 style="color: #5bc0de;"><b>Braille to Speech Converter</b></h1>
   </header>
 
-  <br><br><br><br>
-
-  <div align="center" class="container">
-    <img id="inputimage" src="/coverimage" class="img-fluid input_image" alt="Raw"/>
-    <br>
+  <div class="text-center">
+    <img id="inputimage" src="/coverimage" class="img-fluid input_image" alt="Raw" />
+    <br><br>
     <kbd id="output">Click on Convert to get the English text for the above image</kbd>
-    <br>
+    <br><br>
 
-    <div style="margin-top: 20px;margin-bottom: 20px;">
-      <input type="file" id="file_input" class="form-control mb-3" oninput="input_filename();">
-      <button onclick="upload('/digest');" id="upload_btn" class="btn btn-primary">Convert to Text</button>
-      <button id="play_btn" class="btn btn-success mt-2">🔊 Play Text</button>
-      <a href="https://rahuldev870.github.io/Braille-k/" class="btn btn-outline-info mt-3">&larr; Back to Homepage</a>
-    </div>
+    <input type="file" id="file_input" class="form-control mb-3" style="max-width: 400px; margin: 0 auto;">
+    <button onclick="upload('/digest');" id="upload_btn" class="btn btn-primary">Convert to Text</button>
+    <button id="play_btn" class="btn btn-success mt-2">🔊 Play Text</button>
+    <a href="https://rahuldev870.github.io/Braille-k/" class="btn btn-outline-info mt-3">← Back to Homepage</a>
 
-    <div id="progress_wrapper" class="d-none">
-      <label id="progress_status"></label>
-      <div class="progress mb-3">
-        <div id="progress" class="progress-bar" role="progressbar"></div>
-      </div>
-    </div>
-
-    <div id="alert_wrapper"></div>
+    <br><br>
+    <audio id="player" controls style="display: none; margin-top: 10px;"></audio>
   </div>
-</div>
 
-<footer class="text-center mt-5 mb-3 text-muted">
-  <small>CSE1901 - Technical Answers for Real World Problems</small>
-</footer>
+  <div id="alert_wrapper" class="mt-3 text-center"></div>
+
+</div>
 
 <script>
   const input = document.getElementById("file_input");
   const input_image = document.getElementById("inputimage");
   const output_text = document.getElementById("output");
-
-  function input_filename() {}
+  const player = document.getElementById("player");
 
   function show_alert(message, type) {
     document.getElementById("alert_wrapper").innerHTML = `
@@ -80,54 +66,55 @@
     const data = new FormData();
     data.append("file", input.files[0]);
 
-    fetch(url, {
-      method: "POST",
-      body: data
-    })
-    .then(response => response.json())
-    .then(res => {
-      if (res.error) {
-        show_alert(res.message, "danger");
+    const request = new XMLHttpRequest();
+    request.responseType = "json";
+    request.open("POST", url);
+    request.send(data);
+
+    request.onload = function () {
+      if (request.status === 200 && request.response) {
+        const res = request.response;
+        if (res.error) {
+          show_alert(res.message, "danger");
+        } else {
+          input_image.src = '/procimage/' + res.img_id + '?' + Date.now();
+          output_text.innerText = res.digest;
+          show_alert("Image converted successfully!", "success");
+        }
       } else {
-        input_image.src = '/procimage/' + res.img_id + '?' + Date.now();
-        output_text.innerText = res.digest;
-        show_alert("Image converted successfully!", "success");
+        show_alert("Failed to upload file.", "danger");
       }
-    })
-    .catch(() => {
-      show_alert("Failed to upload file.", "danger");
-    });
+    };
   }
 
   document.getElementById("play_btn").addEventListener("click", function () {
     const text = output_text.innerText;
     if (!text.trim()) {
-      alert("No text available to play.");
+      show_alert("No text to speak.", "warning");
       return;
     }
 
-    fetch("/speech", {
+    const data = new FormData();
+    data.append("text", text);
+
+    fetch('/speech', {
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ text })
+      body: data
     })
-    .then(res => res.json())
-    .then(data => {
-      if (!data.error && data.url) {
-        const audio = new Audio(data.url);
-        audio.play();
+    .then(response => response.json())
+    .then(json => {
+      if (json.error) {
+        show_alert(json.message, "danger");
       } else {
-        show_alert("Failed to play audio.", "danger");
+        player.src = json.url + "?" + Date.now();
+        player.style.display = "block";
+        player.play();
       }
     })
-    .catch(err => {
-      console.error(err);
-      show_alert("Something went wrong.", "danger");
+    .catch(() => {
+      show_alert("Failed to generate speech.", "danger");
     });
   });
 </script>
-
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
