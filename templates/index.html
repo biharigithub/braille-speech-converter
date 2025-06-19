@@ -36,7 +36,7 @@
       <input type="file" id="file_input" class="form-control mb-3" oninput="input_filename();">
       <button onclick="upload('/digest');" id="upload_btn" class="btn btn-primary">Convert to Text</button>
       <button id="play_btn" class="btn btn-success mt-2">🔊 Play Text</button>
-      <a href="https://rahuldev870.github.io/Braille-k/" class="btn btn-outline-info mt-3">← Back to Homepage</a>
+      <a href="https://rahuldev870.github.io/Braille-k/" class="btn btn-outline-info mt-3">&larr; Back to Homepage</a>
     </div>
 
     <div id="progress_wrapper" class="d-none">
@@ -47,9 +47,7 @@
     </div>
 
     <div id="alert_wrapper"></div>
-
   </div>
-
 </div>
 
 <footer class="text-center mt-5 mb-3 text-muted">
@@ -57,19 +55,19 @@
 </footer>
 
 <script>
-  var input = document.getElementById("file_input");
-  var input_image = document.getElementById("inputimage");
-  var output_text = document.getElementById("output");
+  const input = document.getElementById("file_input");
+  const input_image = document.getElementById("inputimage");
+  const output_text = document.getElementById("output");
 
-  function input_filename() {
-    // Optional filename display
-  }
+  function input_filename() {}
 
   function show_alert(message, type) {
     document.getElementById("alert_wrapper").innerHTML = `
       <div class="alert alert-${type} alert-dismissible fade show" role="alert">
         ${message}
-        <button type="button" class="btn-close" data-dismiss="alert" aria-label="Close"></button>
+        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
       </div>`;
   }
 
@@ -79,45 +77,57 @@
       return;
     }
 
-    var data = new FormData();
+    const data = new FormData();
     data.append("file", input.files[0]);
 
-    var request = new XMLHttpRequest();
-    request.responseType = "json";
-
-    request.open("POST", url);
-    request.send(data);
-
-    request.onload = function () {
-      if (request.status === 200 && request.response) {
-        const res = request.response;
-        if (res.error) {
-          show_alert(res.message, "danger");
-        } else {
-          input_image.src = '/procimage/' + res.img_id + '?' + Date.now();
-          output_text.innerText = res.digest;
-          show_alert("Image converted successfully!", "success");
-        }
+    fetch(url, {
+      method: "POST",
+      body: data
+    })
+    .then(response => response.json())
+    .then(res => {
+      if (res.error) {
+        show_alert(res.message, "danger");
       } else {
-        show_alert("Failed to upload file.", "danger");
+        input_image.src = '/procimage/' + res.img_id + '?' + Date.now();
+        output_text.innerText = res.digest;
+        show_alert("Image converted successfully!", "success");
       }
-    };
+    })
+    .catch(() => {
+      show_alert("Failed to upload file.", "danger");
+    });
   }
 
   document.getElementById("play_btn").addEventListener("click", function () {
-    const text = document.getElementById("output").innerText;
-    say(text);
-  });
+    const text = output_text.innerText;
+    if (!text.trim()) {
+      alert("No text available to play.");
+      return;
+    }
 
-  function say(text, rate = 1, pitch = 1) {
-    const msg = new SpeechSynthesisUtterance();
-    msg.text = text;
-    msg.lang = 'en-US';
-    msg.rate = rate;
-    msg.pitch = pitch;
-    window.speechSynthesis.speak(msg);
-  }
+    fetch("/speech", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ text })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (!data.error && data.url) {
+        const audio = new Audio(data.url);
+        audio.play();
+      } else {
+        show_alert("Failed to play audio.", "danger");
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      show_alert("Something went wrong.", "danger");
+    });
+  });
 </script>
 
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
